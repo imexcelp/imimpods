@@ -1,73 +1,80 @@
-// Create the backup and restore buttons with arrow symbols
-function createBackupRestoreButtons() {
-    // Create container for the buttons
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = 'position: fixed; right: 20px; top: 20px; z-index: 1000;';
+// Create container for the buttons
+const buttonContainer = document.createElement('div');
+buttonContainer.style.cssText = 'position: fixed; right: 20px; top: 20px; z-index: 99999;';
 
-    // Create backup button (up arrow)
-    const backupButton = document.createElement('button');
-    backupButton.innerHTML = '↑';
-    backupButton.title = 'Backup to local computer';
-    backupButton.style.cssText = `
-        padding: 8px 12px;
-        margin: 5px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-    `;
+// Create backup button (up arrow)
+const backupButton = document.createElement('button');
+backupButton.innerHTML = 'C';
+backupButton.title = 'Backup to local computer';
+backupButton.style.cssText = `
+    padding: 8px 12px;
+    margin: 5px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+`;
 
-    // Create restore button (down arrow)
-    const restoreButton = document.createElement('button');
-    restoreButton.innerHTML = '↓';
-    restoreButton.title = 'Restore from local computer';
-    restoreButton.style.cssText = `
-        padding: 8px 12px;
-        margin: 5px;
-        background-color: #2196F3;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-    `;
+// Create restore button (down arrow)
+const restoreButton = document.createElement('button');
+restoreButton.innerHTML = 'R';
+restoreButton.title = 'Restore from local computer';
+restoreButton.style.cssText = `
+    padding: 8px 12px;
+    margin: 5px;
+    background-color: #2196F3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+`;
 
-    // Add click handlers
-    backupButton.addEventListener('click', handleBackup);
-    restoreButton.addEventListener('click', handleRestore);
-
-    // Add buttons to container and container to document
-    buttonContainer.appendChild(backupButton);
-    buttonContainer.appendChild(restoreButton);
-    document.body.appendChild(buttonContainer);
-}
-
-// Function to handle backup
-async function handleBackup() {
+// Add click handlers
+backupButton.addEventListener('click', async () => {
     try {
-        // Get data from localStorage and indexedDB
         const data = await exportBackupData();
         
         // Create and download JSON file
         const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-        downloadFile(jsonBlob, 'backup.json');
+        const jsonUrl = URL.createObjectURL(jsonBlob);
+        const jsonLink = document.createElement('a');
+        jsonLink.href = jsonUrl;
+        jsonLink.download = 'backup.json';
         
         // Create and download ZIP file
-        const zip = new JSZip();
+        const jszip = await loadJSZip();
+        const zip = new jszip();
         zip.file('backup.json', JSON.stringify(data));
         const zipContent = await zip.generateAsync({ type: 'blob' });
-        downloadFile(zipContent, 'backup.zip');
+        const zipUrl = URL.createObjectURL(zipContent);
+        const zipLink = document.createElement('a');
+        zipLink.href = zipUrl;
+        zipLink.download = 'backup.zip';
+        
+        // Trigger downloads
+        document.body.appendChild(jsonLink);
+        document.body.appendChild(zipLink);
+        jsonLink.click();
+        setTimeout(() => zipLink.click(), 100);
+        
+        // Cleanup
+        setTimeout(() => {
+            document.body.removeChild(jsonLink);
+            document.body.removeChild(zipLink);
+            URL.revokeObjectURL(jsonUrl);
+            URL.revokeObjectURL(zipUrl);
+        }, 200);
         
     } catch (error) {
         console.error('Backup failed:', error);
         alert('Backup failed: ' + error.message);
     }
-}
+});
 
-// Function to handle restore
-function handleRestore() {
+restoreButton.addEventListener('click', () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json,.zip';
@@ -79,7 +86,8 @@ function handleRestore() {
             
             let data;
             if (file.name.endsWith('.zip')) {
-                const zip = await JSZip.loadAsync(file);
+                const jszip = await loadJSZip();
+                const zip = await jszip.loadAsync(file);
                 const jsonFile = Object.keys(zip.files)[0];
                 const content = await zip.file(jsonFile).async('text');
                 data = JSON.parse(content);
@@ -98,79 +106,12 @@ function handleRestore() {
     };
     
     input.click();
-}
+});
 
-// Helper function to export backup data
-async function exportBackupData() {
-    const data = {
-        localStorage: { ...localStorage },
-        indexedDB: {}
-    };
-
-    // Get data from indexedDB
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('keyval-store');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = function(event) {
-            const db = event.target.result;
-            const transaction = db.transaction(['keyval'], 'readonly');
-            const store = transaction.objectStore('keyval');
-            
-            store.getAll().onsuccess = function(event) {
-                data.indexedDB = event.target.result;
-                resolve(data);
-            };
-        };
-    });
-}
-
-// Helper function to import data to storage
-async function importDataToStorage(data) {
-    // Restore localStorage data
-    Object.keys(data.localStorage).forEach(key => {
-        localStorage.setItem(key, data.localStorage[key]);
-    });
-
-    // Restore indexedDB data
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('keyval-store');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = function(event) {
-            const db = event.target.result;
-            const transaction = db.transaction(['keyval'], 'readwrite');
-            const store = transaction.objectStore('keyval');
-            
-            // Clear existing data
-            store.clear().onsuccess = function() {
-                // Add new data
-                Object.keys(data.indexedDB).forEach(key => {
-                    store.put(data.indexedDB[key], key);
-                });
-            };
-            
-            transaction.oncomplete = () => resolve();
-        };
-    });
-}
-
-// Helper function to download files
-function downloadFile(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }, 100);
-}
-
-// Initialize buttons when the page loads
-document.addEventListener('DOMContentLoaded', createBackupRestoreButtons);
-
-
+// Add buttons to container and container to document
+buttonContainer.appendChild(backupButton);
+buttonContainer.appendChild(restoreButton);
+document.body.appendChild(buttonContainer);
 
 (() => {
   function hideButtons() {
