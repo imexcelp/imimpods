@@ -35,7 +35,11 @@ restoreButton.style.cssText = `
 // Add click handlers
 backupButton.addEventListener('click', async () => {
     try {
-        const data = await exportBackupData();
+        // Get data to backup
+        const data = {
+            localStorage: { ...localStorage },
+            indexedDB: {}
+        };
         
         // Create and download JSON file
         const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
@@ -45,8 +49,7 @@ backupButton.addEventListener('click', async () => {
         jsonLink.download = 'backup.json';
         
         // Create and download ZIP file
-        const jszip = await loadJSZip();
-        const zip = new jszip();
+        const zip = new JSZip();
         zip.file('backup.json', JSON.stringify(data));
         const zipContent = await zip.generateAsync({ type: 'blob' });
         const zipUrl = URL.createObjectURL(zipContent);
@@ -86,8 +89,7 @@ restoreButton.addEventListener('click', () => {
             
             let data;
             if (file.name.endsWith('.zip')) {
-                const jszip = await loadJSZip();
-                const zip = await jszip.loadAsync(file);
+                const zip = await JSZip.loadAsync(file);
                 const jsonFile = Object.keys(zip.files)[0];
                 const content = await zip.file(jsonFile).async('text');
                 data = JSON.parse(content);
@@ -96,7 +98,11 @@ restoreButton.addEventListener('click', () => {
                 data = JSON.parse(content);
             }
             
-            await importDataToStorage(data);
+            // Restore data
+            Object.keys(data.localStorage || {}).forEach(key => {
+                localStorage.setItem(key, data.localStorage[key]);
+            });
+            
             alert('Restore completed successfully!');
             
         } catch (error) {
@@ -112,6 +118,11 @@ restoreButton.addEventListener('click', () => {
 buttonContainer.appendChild(backupButton);
 buttonContainer.appendChild(restoreButton);
 document.body.appendChild(buttonContainer);
+
+// Add JSZip library
+const script = document.createElement('script');
+script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js';
+document.head.appendChild(script);
 
 (() => {
   function hideButtons() {
