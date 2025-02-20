@@ -7,14 +7,14 @@ const backupButton = document.createElement('button');
 backupButton.innerHTML = '↑';
 backupButton.title = 'Backup to local computer';
 backupButton.style.cssText = `
-    padding: 8px 8px;
+    padding: 6px 6px;
     margin: 5px;
     background-color: #4CAF50;
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 1px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 12px;
 `;
 
 // Create restore button (down arrow)
@@ -22,17 +22,17 @@ const restoreButton = document.createElement('button');
 restoreButton.innerHTML = '↓';
 restoreButton.title = 'Restore from local computer';
 restoreButton.style.cssText = `
-    padding: 8px 8px;
+    padding: 6px 6px;
     margin: 5px;
     background-color: #2196F3;
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 1px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 12px;
 `;
 
-// Function to export data
+// Function to export data from localStorage and indexedDB
 async function exportData() {
     const data = {
         localStorage: {},
@@ -56,43 +56,14 @@ async function exportData() {
             
             store.getAll().onsuccess = function(event) {
                 data.indexedDB = event.target.result;
-                
-                // Create and download JSON file
-                const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-                const jsonUrl = URL.createObjectURL(jsonBlob);
-                const jsonLink = document.createElement('a');
-                jsonLink.href = jsonUrl;
-                jsonLink.download = 'backup.json';
-                document.body.appendChild(jsonLink);
-                jsonLink.click();
-                document.body.removeChild(jsonLink);
-                URL.revokeObjectURL(jsonUrl);
-
-                // Create and download ZIP file
-                const zip = new JSZip();
-                zip.file('backup.json', JSON.stringify(data));
-                zip.generateAsync({ type: 'blob' }).then(function(content) {
-                    const zipUrl = URL.createObjectURL(content);
-                    const zipLink = document.createElement('a');
-                    zipLink.href = zipUrl;
-                    zipLink.download = 'backup.zip';
-                    document.body.appendChild(zipLink);
-                    zipLink.click();
-                    document.body.removeChild(zipLink);
-                    URL.revokeObjectURL(zipUrl);
-                });
-
-                resolve();
+                resolve(data);
             };
         };
     });
 }
 
-// Function to import data
-async function importData(file) {
-    const content = await file.text();
-    const data = JSON.parse(content);
-
+// Function to import data to localStorage and indexedDB
+async function importData(data) {
     // Restore localStorage data
     Object.keys(data.localStorage).forEach(key => {
         localStorage.setItem(key, data.localStorage[key]);
@@ -123,7 +94,38 @@ async function importData(file) {
 // Add click handlers
 backupButton.addEventListener('click', async () => {
     try {
-        await exportData();
+        const data = await exportData();
+        
+        // Create and download JSON file
+        const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+        const jsonUrl = URL.createObjectURL(jsonBlob);
+        const jsonLink = document.createElement('a');
+        jsonLink.href = jsonUrl;
+        jsonLink.download = 'backup.json';
+        
+        // Create and download ZIP file
+        const zip = new JSZip();
+        zip.file('backup.json', JSON.stringify(data));
+        const zipContent = await zip.generateAsync({ type: 'blob' });
+        const zipUrl = URL.createObjectURL(zipContent);
+        const zipLink = document.createElement('a');
+        zipLink.href = zipUrl;
+        zipLink.download = 'backup.zip';
+        
+        // Trigger downloads
+        document.body.appendChild(jsonLink);
+        document.body.appendChild(zipLink);
+        jsonLink.click();
+        setTimeout(() => zipLink.click(), 100);
+        
+        // Cleanup
+        setTimeout(() => {
+            document.body.removeChild(jsonLink);
+            document.body.removeChild(zipLink);
+            URL.revokeObjectURL(jsonUrl);
+            URL.revokeObjectURL(zipUrl);
+        }, 200);
+        
     } catch (error) {
         console.error('Backup failed:', error);
         alert('Backup failed: ' + error.message);
@@ -140,15 +142,18 @@ restoreButton.addEventListener('click', () => {
             const file = e.target.files[0];
             if (!file) return;
             
+            let data;
             if (file.name.endsWith('.zip')) {
                 const zip = await JSZip.loadAsync(file);
                 const jsonFile = Object.keys(zip.files)[0];
                 const content = await zip.file(jsonFile).async('text');
-                await importData(new Blob([content], { type: 'application/json' }));
+                data = JSON.parse(content);
             } else {
-                await importData(file);
+                const content = await file.text();
+                data = JSON.parse(content);
             }
             
+            await importData(data);
             alert('Restore completed successfully!');
             location.reload(); // Reload the page to apply changes
             
@@ -170,7 +175,6 @@ document.body.appendChild(buttonContainer);
 const script = document.createElement('script');
 script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js';
 document.head.appendChild(script);
-
 (() => {
   function hideButtons() {
     const hideButtonStyles = `
