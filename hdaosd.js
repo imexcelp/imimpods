@@ -7,7 +7,7 @@ const backupButton = document.createElement('button');
 backupButton.innerHTML = '↑';
 backupButton.title = 'Backup to local computer';
 backupButton.style.cssText = `
-    padding: 8px 12px;
+    padding: 8px 8px;
     margin: 5px;
     background-color: #4CAF50;
     color: white;
@@ -22,7 +22,7 @@ const restoreButton = document.createElement('button');
 restoreButton.innerHTML = '↓';
 restoreButton.title = 'Restore from local computer';
 restoreButton.style.cssText = `
-    padding: 8px 12px;
+    padding: 8px 8px;
     margin: 5px;
     background-color: #2196F3;
     color: white;
@@ -32,45 +32,98 @@ restoreButton.style.cssText = `
     font-size: 16px;
 `;
 
+// Function to export data
+async function exportData() {
+    const data = {
+        localStorage: {},
+        indexedDB: {}
+    };
+
+    // Get localStorage data
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        data.localStorage[key] = localStorage.getItem(key);
+    }
+
+    // Get indexedDB data
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = function(event) {
+            const db = event.target.result;
+            const transaction = db.transaction(['keyval'], 'readonly');
+            const store = transaction.objectStore('keyval');
+            
+            store.getAll().onsuccess = function(event) {
+                data.indexedDB = event.target.result;
+                
+                // Create and download JSON file
+                const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+                const jsonUrl = URL.createObjectURL(jsonBlob);
+                const jsonLink = document.createElement('a');
+                jsonLink.href = jsonUrl;
+                jsonLink.download = 'backup.json';
+                document.body.appendChild(jsonLink);
+                jsonLink.click();
+                document.body.removeChild(jsonLink);
+                URL.revokeObjectURL(jsonUrl);
+
+                // Create and download ZIP file
+                const zip = new JSZip();
+                zip.file('backup.json', JSON.stringify(data));
+                zip.generateAsync({ type: 'blob' }).then(function(content) {
+                    const zipUrl = URL.createObjectURL(content);
+                    const zipLink = document.createElement('a');
+                    zipLink.href = zipUrl;
+                    zipLink.download = 'backup.zip';
+                    document.body.appendChild(zipLink);
+                    zipLink.click();
+                    document.body.removeChild(zipLink);
+                    URL.revokeObjectURL(zipUrl);
+                });
+
+                resolve();
+            };
+        };
+    });
+}
+
+// Function to import data
+async function importData(file) {
+    const content = await file.text();
+    const data = JSON.parse(content);
+
+    // Restore localStorage data
+    Object.keys(data.localStorage).forEach(key => {
+        localStorage.setItem(key, data.localStorage[key]);
+    });
+
+    // Restore indexedDB data
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('keyval-store');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = function(event) {
+            const db = event.target.result;
+            const transaction = db.transaction(['keyval'], 'readwrite');
+            const store = transaction.objectStore('keyval');
+            
+            // Clear existing data
+            store.clear().onsuccess = function() {
+                // Add new data
+                data.indexedDB.forEach(item => {
+                    store.add(item);
+                });
+            };
+            
+            transaction.oncomplete = () => resolve();
+        };
+    });
+}
+
 // Add click handlers
 backupButton.addEventListener('click', async () => {
     try {
-        // Get data to backup
-        const data = {
-            localStorage: { ...localStorage },
-            indexedDB: {}
-        };
-        
-        // Create and download JSON file
-        const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-        const jsonUrl = URL.createObjectURL(jsonBlob);
-        const jsonLink = document.createElement('a');
-        jsonLink.href = jsonUrl;
-        jsonLink.download = 'backup.json';
-        
-        // Create and download ZIP file
-        const zip = new JSZip();
-        zip.file('backup.json', JSON.stringify(data));
-        const zipContent = await zip.generateAsync({ type: 'blob' });
-        const zipUrl = URL.createObjectURL(zipContent);
-        const zipLink = document.createElement('a');
-        zipLink.href = zipUrl;
-        zipLink.download = 'backup.zip';
-        
-        // Trigger downloads
-        document.body.appendChild(jsonLink);
-        document.body.appendChild(zipLink);
-        jsonLink.click();
-        setTimeout(() => zipLink.click(), 100);
-        
-        // Cleanup
-        setTimeout(() => {
-            document.body.removeChild(jsonLink);
-            document.body.removeChild(zipLink);
-            URL.revokeObjectURL(jsonUrl);
-            URL.revokeObjectURL(zipUrl);
-        }, 200);
-        
+        await exportData();
     } catch (error) {
         console.error('Backup failed:', error);
         alert('Backup failed: ' + error.message);
@@ -87,23 +140,17 @@ restoreButton.addEventListener('click', () => {
             const file = e.target.files[0];
             if (!file) return;
             
-            let data;
             if (file.name.endsWith('.zip')) {
                 const zip = await JSZip.loadAsync(file);
                 const jsonFile = Object.keys(zip.files)[0];
                 const content = await zip.file(jsonFile).async('text');
-                data = JSON.parse(content);
+                await importData(new Blob([content], { type: 'application/json' }));
             } else {
-                const content = await file.text();
-                data = JSON.parse(content);
+                await importData(file);
             }
             
-            // Restore data
-            Object.keys(data.localStorage || {}).forEach(key => {
-                localStorage.setItem(key, data.localStorage[key]);
-            });
-            
             alert('Restore completed successfully!');
+            location.reload(); // Reload the page to apply changes
             
         } catch (error) {
             console.error('Restore failed:', error);
