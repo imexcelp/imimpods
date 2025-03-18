@@ -1,5 +1,6 @@
 (() => {
   function hideButtons() {
+    // CSS rules for buttons with specific data-element-id attributes.
     const hideButtonStyles = `
       /* Hide Teams button */
       button[data-element-id="workspace-tab-teams"] {
@@ -10,25 +11,30 @@
       button[data-element-id="workspace-profile-button"] {
         display: none !important;
       }
-
-      /* Hide User kb button */
-      button[class="min-w-[58px] sm:min-w-0 sm:aspect-auto aspect-square cursor-default h-12 md:h-[50px] flex-col justify-start items-start inline-flex focus:outline-0 focus:text-white w-full"] {
-        display: none !important;
-      
     `;
 
     const styleElement = document.createElement('style');
     styleElement.textContent = hideButtonStyles;
     document.head.appendChild(styleElement);
 
+    // JavaScript to hide the KB button without affecting other elements.
+    const allButtons = document.querySelectorAll('button');
+    allButtons.forEach((btn) => {
+      // Check if the button's inner text, when trimmed, equals "KB".
+      // This approach is more precise than using a broad CSS selector.
+      if (btn.innerText && btn.innerText.trim() === 'KB') {
+        btn.style.display = 'none';
+        console.log('KB button hidden successfully');
+      }
+    });
+
     console.log('Teams and Profile buttons hidden successfully');
   }
 
-  // Check if the document is already loaded
+  // Run the function when the DOM is loaded.
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     hideButtons();
   } else {
-    // If not, wait for it to load
     document.addEventListener('DOMContentLoaded', hideButtons);
   }
 })();
