@@ -10,18 +10,13 @@
       button[data-element-id="workspace-profile-button"] {
         display: none !important;
       }
-      
-      /* Hide KB button (by targeting unique class combination) */
-      button[data-element-id="workspace-tab-kb"] {
-        display: none !important;
-      }
     `;
 
     const styleElement = document.createElement('style');
     styleElement.textContent = hideButtonStyles;
     document.head.appendChild(styleElement);
 
-    console.log('Teams, Profile, and KB buttons hidden successfully');
+    console.log('Teams and Profile buttons hidden successfully');
   }
 
   // Check if the document is already loaded
