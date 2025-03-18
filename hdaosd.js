@@ -10,6 +10,11 @@
       button[data-element-id="workspace-profile-button"] {
         display: none !important;
       }
+
+      /* Hide User kb button */
+      button[class="min-w-[58px] sm:min-w-0 sm:aspect-auto aspect-square cursor-default h-12 md:h-[50px] flex-col justify-start items-start inline-flex focus:outline-0 focus:text-white w-full"] {
+        display: none !important;
+      
     `;
 
     const styleElement = document.createElement('style');
