@@ -12,7 +12,7 @@
       }
       
       /* Hide KB button (by targeting unique class combination) */
-      button.min-w-\\[58px\\].w-full {
+      button[data-element-id="workspace-tab-kb"] {
         display: none !important;
       }
     `;
