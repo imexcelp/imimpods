@@ -17,7 +17,6 @@
     styleElement.textContent = hideButtonStyles;
     document.head.appendChild(styleElement);
 
-    
     // JavaScript to hide the KB button without affecting other elements.
     const allButtons = document.querySelectorAll('button');
     allButtons.forEach((btn) => {
