@@ -17,6 +17,7 @@
     styleElement.textContent = hideButtonStyles;
     document.head.appendChild(styleElement);
 
+    /*
     // JavaScript to hide the KB button without affecting other elements.
     const allButtons = document.querySelectorAll('button');
     allButtons.forEach((btn) => {
@@ -27,7 +28,7 @@
         console.log('KB button hidden successfully');
       }
     });
-
+*/
     console.log('Teams and Profile buttons hidden successfully');
   }
 
